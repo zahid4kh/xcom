@@ -1,4 +1,4 @@
-QT += core gui widgets webenginewidgets
+QT += core gui widgets webenginewidgets concurrent
 
 CONFIG += c++20
 
@@ -14,16 +14,18 @@ UI_DIR      = build/.ui
 INCLUDEPATH += include
 
 HEADERS += \
-    include/mainwindow.h   \
-    include/xcompage.h     \
-    include/xcomprofile.h  \
-    include/xcomview.h
+    include/mainwindow.h    \
+    include/xcompage.h      \
+    include/xcomprofile.h   \
+    include/xcomview.h      \
+    include/resourcepanel.h
 
 SOURCES += \
-    main.cpp              \
-    src/mainwindow.cpp    \
-    src/xcompage.cpp      \
-    src/xcomprofile.cpp   \
-    src/xcomview.cpp
+    main.cpp                  \
+    src/mainwindow.cpp        \
+    src/xcompage.cpp          \
+    src/xcomprofile.cpp       \
+    src/xcomview.cpp          \
+    src/resourcepanel.cpp
 
 RESOURCES += resources.qrc

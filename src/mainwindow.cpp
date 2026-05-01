@@ -1,9 +1,11 @@
 #include "mainwindow.h"
 #include "xcomview.h"
 #include "xcomprofile.h"
+#include "resourcepanel.h"
 
 #include <QApplication>
 #include <QMenuBar>
+#include <QResizeEvent>
 #include <QToolBar>
 #include <QTabWidget>
 #include <QShortcut>
@@ -25,6 +27,9 @@ MainWindow::MainWindow(QWidget* parent)
 
     auto* newTabShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_T), this);
     connect(newTabShortcut, &QShortcut::activated, this, &MainWindow::onNewTab);
+
+    m_resourcePanel = new ResourcePanel(this);
+    m_resourcePanel->raise();
 
     createTab(HOME_URL);
 }
@@ -54,13 +59,16 @@ void MainWindow::setupToolbar()
     QAction* refresh = m_toolbar->addAction(QStringLiteral("↺"));
     QAction* home    = m_toolbar->addAction(QStringLiteral("⌂ Home"));
     m_toolbar->addSeparator();
-    QAction* newTab  = m_toolbar->addAction(QStringLiteral("＋ New Tab"));
+    QAction* newTab   = m_toolbar->addAction(QStringLiteral("＋ New Tab"));
+    m_toolbar->addSeparator();
+    QAction* statsAct = m_toolbar->addAction(QStringLiteral("⊙"));
 
     m_back->setToolTip(QStringLiteral("Back"));
     m_forward->setToolTip(QStringLiteral("Forward"));
     refresh->setToolTip(QStringLiteral("Refresh"));
     home->setToolTip(QStringLiteral("Go to x.com home"));
     newTab->setToolTip(QStringLiteral("Open new tab (Ctrl+T)"));
+    statsAct->setToolTip(QStringLiteral("Resource Monitor"));
 
     connect(m_back,    &QAction::triggered, this, [this]() {
         if (auto* v = currentView()) v->back();
@@ -71,8 +79,11 @@ void MainWindow::setupToolbar()
     connect(refresh,   &QAction::triggered, this, [this]() {
         if (auto* v = currentView()) v->reload();
     });
-    connect(home,    &QAction::triggered, this, &MainWindow::onHome);
-    connect(newTab,  &QAction::triggered, this, &MainWindow::onNewTab);
+    connect(home,     &QAction::triggered, this, &MainWindow::onHome);
+    connect(newTab,   &QAction::triggered, this, &MainWindow::onNewTab);
+    connect(statsAct, &QAction::triggered, this, [this]() {
+        m_resourcePanel->toggle();
+    });
 }
 
 void MainWindow::setupTabs()
@@ -175,4 +186,11 @@ void MainWindow::updateNavActions()
     auto* v = currentView();
     m_back->setEnabled(v && v->history()->canGoBack());
     m_forward->setEnabled(v && v->history()->canGoForward());
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    if (m_resourcePanel)
+        m_resourcePanel->reanchor();
 }
