@@ -12,6 +12,7 @@ int main(int argc, char* argv[])
     app.setApplicationName(QStringLiteral("XCOM"));
     app.setOrganizationName(QStringLiteral("XCOM"));
     app.setApplicationVersion(QStringLiteral("1.0"));
+    app.setDesktopFileName(QStringLiteral("xcom"));
 
     QIcon icon;
     icon.addFile(QStringLiteral(":/icons/appicon_512x512.png"));
@@ -19,6 +20,7 @@ int main(int argc, char* argv[])
     app.setWindowIcon(icon);
 
     MainWindow w;
+    w.setObjectName(QStringLiteral("xcom"));
     w.show();
 
     return app.exec();

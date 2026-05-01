@@ -18,7 +18,10 @@ protected:
 
 private:
     MainWindow* m_mainWindow;
+    bool m_googleAuthWarningShown = false;
 
+    bool openGoogleAuthExternally(const QUrl& url);
+    static bool isGoogleAuthUrl(const QUrl& url);
     static bool isXDomain(const QUrl& url);
     static bool isXUrl(const QUrl& url);
 };

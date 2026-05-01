@@ -24,8 +24,9 @@ XComProfile::XComProfile(QObject* parent)
     setHttpCacheType(QWebEngineProfile::DiskHttpCache);
     setPersistentCookiesPolicy(QWebEngineProfile::ForcePersistentCookies);
 
-    static const QRegularExpression qtUaTag(R"(\s*QtWebEngine/[\d.]+)");
-    setHttpUserAgent(httpUserAgent().remove(qtUaTag));
+    QString userAgent = httpUserAgent();
+    userAgent.remove(QRegularExpression(QStringLiteral("\\s+QtWebEngine/\\S+")));
+    setHttpUserAgent(userAgent);
 }
 
 void XComProfile::logout()

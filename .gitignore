@@ -6,3 +6,6 @@ Makefile
 
 PRD.md
 .claude/
+make_deb.sh
+*.deb
+debian
