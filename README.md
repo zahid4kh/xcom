@@ -49,7 +49,7 @@ XCOM is a performance-focused, dedicated desktop client for X (formerly Twitter)
 
 ## License
 
-This project is open-source. Feel free to fork, modify, and use it as you wish. If you like it, a star on GitHub is appreciated!
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 *Disclaimer: This is an unofficial client and is not affiliated with X Corp.*
