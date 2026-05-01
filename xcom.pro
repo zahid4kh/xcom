@@ -25,3 +25,5 @@ SOURCES += \
     src/xcompage.cpp      \
     src/xcomprofile.cpp   \
     src/xcomview.cpp
+
+RESOURCES += resources.qrc
