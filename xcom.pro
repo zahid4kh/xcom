@@ -18,7 +18,8 @@ HEADERS += \
     include/xcompage.h      \
     include/xcomprofile.h   \
     include/xcomview.h      \
-    include/resourcepanel.h
+    include/resourcepanel.h \
+    include/svgicon.h
 
 SOURCES += \
     main.cpp                  \

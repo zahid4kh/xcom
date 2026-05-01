@@ -2,18 +2,23 @@
 #include "xcomview.h"
 #include "xcomprofile.h"
 #include "resourcepanel.h"
+#include "svgicon.h"
 
 #include <QApplication>
 #include <QMenuBar>
 #include <QResizeEvent>
 #include <QToolBar>
+#include <QToolButton>
 #include <QTabWidget>
+#include <QTabBar>
 #include <QShortcut>
 #include <QKeySequence>
 #include <QWebEngineView>
 #include <QWebEngineHistory>
+#include <QWebEngineFullScreenRequest>
 
 static const QUrl HOME_URL = QUrl(QStringLiteral("https://x.com"));
+static const QColor ICON_COLOR(180, 180, 210);
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -38,7 +43,9 @@ void MainWindow::setupMenu()
 {
     QMenu* menu = menuBar()->addMenu(QStringLiteral("XCOM"));
 
-    QAction* logoutAct = menu->addAction(QStringLiteral("Log Out"));
+    QAction* logoutAct = menu->addAction(
+        svgIcon(QStringLiteral(":/icons/log-out.svg"), ICON_COLOR, 16),
+        QStringLiteral("Log Out"));
     connect(logoutAct, &QAction::triggered, this, &MainWindow::onLogout);
 
     menu->addSeparator();
@@ -53,15 +60,16 @@ void MainWindow::setupToolbar()
     m_toolbar = addToolBar(QStringLiteral("Navigation"));
     m_toolbar->setMovable(false);
     m_toolbar->setFloatable(false);
+    m_toolbar->setIconSize(QSize(20, 20));
 
-    m_back    = m_toolbar->addAction(QStringLiteral("◀"));
-    m_forward = m_toolbar->addAction(QStringLiteral("▶"));
-    QAction* refresh = m_toolbar->addAction(QStringLiteral("↺"));
-    QAction* home    = m_toolbar->addAction(QStringLiteral("⌂ Home"));
+    m_back    = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/arrow-left.svg"),  ICON_COLOR), QString());
+    m_forward = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/arrow-right.svg"), ICON_COLOR), QString());
+    QAction* refresh = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/rotate-cw.svg"), ICON_COLOR), QString());
+    QAction* home    = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/home.svg"),  ICON_COLOR), QString());
     m_toolbar->addSeparator();
-    QAction* newTab   = m_toolbar->addAction(QStringLiteral("＋ New Tab"));
+    QAction* newTab   = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/x.svg"), ICON_COLOR), QString());
     m_toolbar->addSeparator();
-    QAction* statsAct = m_toolbar->addAction(QStringLiteral("⊙"));
+    QAction* statsAct = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/activity.svg"), ICON_COLOR), QString());
 
     m_back->setToolTip(QStringLiteral("Back"));
     m_forward->setToolTip(QStringLiteral("Forward"));
@@ -89,13 +97,11 @@ void MainWindow::setupToolbar()
 void MainWindow::setupTabs()
 {
     m_tabs = new QTabWidget(this);
-    m_tabs->setTabsClosable(true);
+    m_tabs->setTabsClosable(false);
     m_tabs->setMovable(true);
     m_tabs->setDocumentMode(true);
     m_tabs->setElideMode(Qt::ElideRight);
 
-    connect(m_tabs, &QTabWidget::tabCloseRequested,
-            this,   &MainWindow::onTabCloseRequested);
     connect(m_tabs, &QTabWidget::currentChanged,
             this,   &MainWindow::onCurrentTabChanged);
 
@@ -107,6 +113,20 @@ XComView* MainWindow::createTab(const QUrl& url)
     auto* view = new XComView(this);
     const int idx = m_tabs->addTab(view, QStringLiteral("Loading…"));
     m_tabs->setCurrentIndex(idx);
+
+    auto* closeBtn = new QToolButton(m_tabs->tabBar());
+    closeBtn->setIcon(svgIcon(QStringLiteral(":/icons/circle-x.svg"), QColor(100, 100, 160), 14));
+    closeBtn->setFixedSize(18, 18);
+    closeBtn->setAutoRaise(true);
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet(QStringLiteral(
+        "QToolButton { background: transparent; border: none; padding: 0; }"
+        "QToolButton:hover { background: rgba(255,255,255,15); border-radius: 4px; }"
+    ));
+    m_tabs->tabBar()->setTabButton(idx, QTabBar::RightSide, closeBtn);
+    connect(closeBtn, &QToolButton::clicked, this, [this, view]() {
+        onTabCloseRequested(m_tabs->indexOf(view));
+    });
 
     connect(view, &QWebEngineView::titleChanged, this,
             [this, view](const QString& title) {
@@ -130,6 +150,23 @@ XComView* MainWindow::createTab(const QUrl& url)
         const int i = m_tabs->indexOf(view);
         if (i >= 0 && m_tabs->count() > 1)
             onTabCloseRequested(i);
+    });
+
+    connect(view->page(), &QWebEnginePage::fullScreenRequested, this,
+            [this](QWebEngineFullScreenRequest request) {
+        request.accept();
+        if (request.toggleOn()) {
+            m_prevWindowState = windowState();
+            menuBar()->hide();
+            m_toolbar->hide();
+            m_tabs->tabBar()->hide();
+            showFullScreen();
+        } else {
+            setWindowState(m_prevWindowState);
+            menuBar()->show();
+            m_toolbar->show();
+            m_tabs->tabBar()->show();
+        }
     });
 
     if (url.isValid() && !url.isEmpty())

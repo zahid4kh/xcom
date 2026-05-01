@@ -3,12 +3,15 @@
 #include "xcomview.h"
 
 #include <QDesktopServices>
+#include <QWebEngineSettings>
 
 XComPage::XComPage(MainWindow* mainWindow, QWebEngineProfile* profile,
                    QObject* parent)
     : QWebEnginePage(profile, parent)
     , m_mainWindow(mainWindow)
-{}
+{
+    settings()->setAttribute(QWebEngineSettings::FullScreenSupportEnabled, true);
+}
 
 QWebEnginePage* XComPage::createWindow(WebWindowType)
 {

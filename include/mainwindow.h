@@ -33,9 +33,10 @@ private:
     void setupTabs();
     void updateNavActions();
 
-    QTabWidget*    m_tabs           = nullptr;
-    QToolBar*      m_toolbar        = nullptr;
-    QAction*       m_back           = nullptr;
-    QAction*       m_forward        = nullptr;
-    ResourcePanel* m_resourcePanel  = nullptr;
+    QTabWidget*      m_tabs              = nullptr;
+    QToolBar*        m_toolbar           = nullptr;
+    QAction*         m_back              = nullptr;
+    QAction*         m_forward           = nullptr;
+    ResourcePanel*   m_resourcePanel     = nullptr;
+    Qt::WindowStates m_prevWindowState   = Qt::WindowNoState;
 };

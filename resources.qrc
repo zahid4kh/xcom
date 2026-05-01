@@ -2,5 +2,13 @@
     <qresource prefix="/">
         <file>icons/appicon_512x512.png</file>
         <file>icons/appicon_1024x1024.png</file>
+        <file>icons/activity.svg</file>
+        <file>icons/arrow-left.svg</file>
+        <file>icons/arrow-right.svg</file>
+        <file>icons/circle-x.svg</file>
+        <file>icons/home.svg</file>
+        <file>icons/log-out.svg</file>
+        <file>icons/rotate-cw.svg</file>
+        <file>icons/x.svg</file>
     </qresource>
 </RCC>
