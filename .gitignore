@@ -1,0 +1,8 @@
+build/
+xcom
+
+Makefile
+.qmake.stash
+
+PRD.md
+.claude/
