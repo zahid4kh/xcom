@@ -9,3 +9,7 @@ PRD.md
 make_deb.sh
 *.deb
 debian
+
+PLAN.md
+TODO.md
+CLAUDE.md

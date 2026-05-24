@@ -19,7 +19,8 @@ HEADERS += \
     include/xcomprofile.h   \
     include/xcomview.h      \
     include/resourcepanel.h \
-    include/svgicon.h
+    include/svgicon.h       \
+    include/widgetheader.h
 
 SOURCES += \
     main.cpp                  \
@@ -27,6 +28,7 @@ SOURCES += \
     src/xcompage.cpp          \
     src/xcomprofile.cpp       \
     src/xcomview.cpp          \
-    src/resourcepanel.cpp
+    src/resourcepanel.cpp     \
+    src/widgetheader.cpp
 
 RESOURCES += resources.qrc
