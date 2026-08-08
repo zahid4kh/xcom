@@ -18,9 +18,11 @@
 #include "mainwindow.h"
 
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QMenu>
 #include <QWebEngineContextMenuRequest>
 #include <QWebEngineHistory>
+#include <QWheelEvent>
 
 static const QString MENU_STYLE = QStringLiteral(
     "QMenu {"
@@ -56,6 +58,44 @@ XComView::XComView(MainWindow* mainWindow, QWidget* parent)
 {
     auto* p = new XComPage(mainWindow, XComProfile::instance(), this);
     setPage(p);
+}
+
+bool XComView::event(QEvent* e)
+{
+    if (!m_wheelFilterInstalled) {
+        if (QWidget* proxy = focusProxy()) {
+            proxy->installEventFilter(this);
+            m_wheelFilterInstalled = true;
+        }
+    }
+    return QWebEngineView::event(e);
+}
+
+bool XComView::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Wheel && !m_forwardingWheel) {
+        auto* wheel = static_cast<QWheelEvent*>(event);
+
+        if (wheel->modifiers() & Qt::ControlModifier) {
+            const int delta = wheel->angleDelta().y();
+            if (delta != 0)
+                setZoomFactor(qBound(0.25, zoomFactor() + (delta > 0 ? 0.1 : -0.1), 5.0));
+            return true;
+        }
+
+        const qreal speed = m_mainWindow->scrollSpeed();
+        if (!qFuzzyCompare(speed, 1.0)) {
+            QWheelEvent scaled(wheel->position(), wheel->globalPosition(),
+                                wheel->pixelDelta() * speed, wheel->angleDelta() * speed,
+                                wheel->buttons(), wheel->modifiers(), wheel->phase(),
+                                wheel->inverted(), wheel->source());
+            m_forwardingWheel = true;
+            QCoreApplication::sendEvent(watched, &scaled);
+            m_forwardingWheel = false;
+            return true;
+        }
+    }
+    return QWebEngineView::eventFilter(watched, event);
 }
 
 void XComView::contextMenuEvent(QContextMenuEvent* event)

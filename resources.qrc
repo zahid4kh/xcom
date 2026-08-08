@@ -5,10 +5,21 @@
         <file>icons/activity.svg</file>
         <file>icons/arrow-left.svg</file>
         <file>icons/arrow-right.svg</file>
+        <file>icons/badge-check.svg</file>
+        <file>icons/bell.svg</file>
+        <file>icons/bookmark.svg</file>
+        <file>icons/circle-user.svg</file>
         <file>icons/circle-x.svg</file>
+        <file>icons/clapperboard.svg</file>
+        <file>icons/grok.svg</file>
         <file>icons/home.svg</file>
         <file>icons/log-out.svg</file>
+        <file>icons/message-circle.svg</file>
+        <file>icons/newspaper.svg</file>
         <file>icons/rotate-cw.svg</file>
+        <file>icons/search.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/square-pen.svg</file>
         <file>icons/x.svg</file>
     </qresource>
 </RCC>

@@ -19,12 +19,15 @@
 #include "resourcepanel.h"
 #include "svgicon.h"
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenuBar>
+#include <QPainter>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QSettings>
@@ -47,6 +50,16 @@
 
 static const QUrl HOME_URL = QUrl(QStringLiteral("https://x.com"));
 static const QColor ICON_COLOR(180, 180, 210);
+
+static const char NOTIFICATIONS_COUNT_JS[] = R"js(
+(function(){
+    var e=document.querySelector('[data-testid="AppTabBar_Notifications_Link"]');
+    if(!e)return 0;
+    var a=e.getAttribute('aria-label')||'';
+    var m=a.match(/\((\d+)\s*unread/);
+    return m?parseInt(m[1],10):0;
+})()
+)js";
 
 static constexpr int WIDGET_W = 400;
 static constexpr int WIDGET_H = 700;
@@ -76,8 +89,12 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(QStringLiteral("XCOM"));
     resize(1280, 800);
 
+    m_scrollSpeed = QSettings().value(QStringLiteral("scrollSpeed"), 1.0).toReal();
+
     setupMenu();
     setupToolbar();
+    setupNavRail();
+    setupZoomControls();
     setupTabs();
     setupTray();
 
@@ -106,6 +123,33 @@ void MainWindow::setupMenu()
         svgIcon(QStringLiteral(":/icons/log-out.svg"), ICON_COLOR, 16),
         QStringLiteral("Log Out"));
     connect(logoutAct, &QAction::triggered, this, &MainWindow::onLogout);
+
+    menu->addSeparator();
+
+    QMenu *scrollMenu = menu->addMenu(QStringLiteral("Scroll Speed"));
+    auto *scrollGroup = new QActionGroup(this);
+    scrollGroup->setExclusive(true);
+
+    struct SpeedOption { QString label; qreal value; };
+    const QList<SpeedOption> speeds = {
+        {QStringLiteral("0.5x"), 0.5},
+        {QStringLiteral("0.75x"), 0.75},
+        {QStringLiteral("1.0x (Default)"), 1.0},
+        {QStringLiteral("1.5x"), 1.5},
+        {QStringLiteral("2.0x"), 2.0},
+        {QStringLiteral("3.0x"), 3.0},
+    };
+    for (const SpeedOption &opt : speeds)
+    {
+        QAction *act = scrollMenu->addAction(opt.label);
+        act->setCheckable(true);
+        act->setChecked(qFuzzyCompare(m_scrollSpeed, opt.value));
+        scrollGroup->addAction(act);
+        connect(act, &QAction::triggered, this, [this, value = opt.value]()
+                {
+            m_scrollSpeed = value;
+            QSettings().setValue(QStringLiteral("scrollSpeed"), value); });
+    }
 
     menu->addSeparator();
 
@@ -175,6 +219,119 @@ void MainWindow::setupToolbar()
     connect(newTab, &QAction::triggered, this, &MainWindow::onNewTab);
     connect(statsAct, &QAction::triggered, this, [this]()
             { m_resourcePanel->toggle(); });
+}
+
+void MainWindow::setupNavRail()
+{
+    m_navRail = new QToolBar(QStringLiteral("Navigate"), this);
+    m_navRail->setMovable(false);
+    m_navRail->setFloatable(false);
+    m_navRail->setIconSize(QSize(22, 22));
+    m_navRail->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    addToolBar(Qt::LeftToolBarArea, m_navRail);
+
+    const auto addLinkAction = [this](const QString &icon, const QString &tooltip, const QString &selector)
+    {
+        QAction *act = m_navRail->addAction(
+            svgIcon(QStringLiteral(":/icons/%1.svg").arg(icon), ICON_COLOR, 22), QString());
+        act->setToolTip(tooltip);
+        connect(act, &QAction::triggered, this, [this, selector]()
+                { triggerNavLink(selector); });
+        return act;
+    };
+
+    const auto addUrlAction = [this](const QString &icon, const QString &tooltip, const QUrl &url)
+    {
+        QAction *act = m_navRail->addAction(
+            svgIcon(QStringLiteral(":/icons/%1.svg").arg(icon), ICON_COLOR, 22), QString());
+        act->setToolTip(tooltip);
+        connect(act, &QAction::triggered, this, [this, url]()
+                { navigateTo(url); });
+    };
+
+    addLinkAction(QStringLiteral("square-pen"), QStringLiteral("Post"),
+                  QStringLiteral("[data-testid=\"SideNav_NewTweet_Button\"]"));
+    m_navRail->addSeparator();
+    addLinkAction(QStringLiteral("home"), QStringLiteral("Home"),
+                  QStringLiteral("[data-testid=\"AppTabBar_Home_Link\"]"));
+    addLinkAction(QStringLiteral("search"), QStringLiteral("Explore"),
+                  QStringLiteral("[data-testid=\"AppTabBar_Explore_Link\"]"));
+    m_notificationsAction = addLinkAction(QStringLiteral("bell"), QStringLiteral("Notifications"),
+                  QStringLiteral("[data-testid=\"AppTabBar_Notifications_Link\"]"));
+    m_bellBaseIcon = m_notificationsAction->icon();
+
+    auto *notifTimer = new QTimer(this);
+    connect(notifTimer, &QTimer::timeout, this, &MainWindow::pollNotificationsBadge);
+    notifTimer->start(5000);
+    addLinkAction(QStringLiteral("message-circle"), QStringLiteral("Chat"),
+                  QStringLiteral("[data-testid=\"AppTabBar_DirectMessage_Link\"]"));
+    addLinkAction(QStringLiteral("grok"), QStringLiteral("Grok"),
+                  QStringLiteral("nav[aria-label=\"Primary\"] a[aria-label=\"Grok\"]"));
+    addLinkAction(QStringLiteral("badge-check"), QStringLiteral("Premium"),
+                  QStringLiteral("[data-testid=\"premium-hub-tab\"]"));
+    addLinkAction(QStringLiteral("bookmark"), QStringLiteral("Bookmarks"),
+                  QStringLiteral("nav[aria-label=\"Primary\"] a[aria-label=\"Bookmarks\"]"));
+    addUrlAction(QStringLiteral("clapperboard"), QStringLiteral("Creator Studio"),
+                 QUrl(QStringLiteral("https://x.com/i/jf/creators/studio")));
+    addUrlAction(QStringLiteral("newspaper"), QStringLiteral("Articles"),
+                 QUrl(QStringLiteral("https://x.com/compose/articles")));
+    addLinkAction(QStringLiteral("circle-user"), QStringLiteral("Profile"),
+                  QStringLiteral("[data-testid=\"AppTabBar_Profile_Link\"]"));
+    addUrlAction(QStringLiteral("settings"), QStringLiteral("Settings"),
+                 QUrl(QStringLiteral("https://x.com/settings")));
+}
+
+void MainWindow::triggerNavLink(const QString &selector)
+{
+    auto *v = currentView();
+    if (!v)
+        return;
+    const QString js = QStringLiteral(
+        "(function(){var e=document.querySelector('%1');if(e)e.click();})();")
+                            .arg(selector);
+    v->page()->runJavaScript(js);
+}
+
+void MainWindow::navigateTo(const QUrl &url)
+{
+    if (auto *v = currentView())
+        v->load(url);
+}
+
+void MainWindow::setupZoomControls()
+{
+    m_zoomLabel = new QLabel(QStringLiteral("100%"), m_toolbar);
+    m_zoomLabel->setStyleSheet(QStringLiteral(
+        "color:#b4b4d2; font-size:11px; font-weight:600; padding:0 4px;"));
+    m_toolbar->addWidget(m_zoomLabel);
+
+    auto *zoomTimer = new QTimer(this);
+    connect(zoomTimer, &QTimer::timeout, this, [this]()
+            {
+        if (auto *v = currentView()) {
+            const QString text = QStringLiteral("%1%").arg(qRound(v->zoomFactor() * 100));
+            if (m_zoomLabel->text() != text)
+                m_zoomLabel->setText(text);
+        } });
+    zoomTimer->start(250);
+
+    auto *zoomInShortcut = new QShortcut(QKeySequence::ZoomIn, this);
+    connect(zoomInShortcut, &QShortcut::activated, this, [this]()
+            {
+        if (auto *v = currentView())
+            v->setZoomFactor(qBound(0.25, v->zoomFactor() + 0.1, 5.0)); });
+
+    auto *zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
+    connect(zoomOutShortcut, &QShortcut::activated, this, [this]()
+            {
+        if (auto *v = currentView())
+            v->setZoomFactor(qBound(0.25, v->zoomFactor() - 0.1, 5.0)); });
+
+    auto *zoomResetShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_0), this);
+    connect(zoomResetShortcut, &QShortcut::activated, this, [this]()
+            {
+        if (auto *v = currentView())
+            v->setZoomFactor(1.0); });
 }
 
 void MainWindow::setupTabs()
@@ -278,6 +435,8 @@ XComView *MainWindow::createTab(const QUrl &url)
                 const int i = m_tabs->indexOf(view);
                 if (i >= 0)
                     m_tabs->setTabText(i, title.isEmpty() ? QStringLiteral("X") : title);
+                if (view == currentView())
+                    pollNotificationsBadge();
             });
 
     connect(view, &QWebEngineView::loadStarted, this,
@@ -320,6 +479,7 @@ XComView *MainWindow::createTab(const QUrl &url)
 
                     menuBar()->hide();
                     m_toolbar->hide();
+                    m_navRail->hide();
                     m_tabs->tabBar()->hide();
                     showFullScreen();
                 }
@@ -346,6 +506,7 @@ XComView *MainWindow::createTab(const QUrl &url)
                         setWindowState(m_prevWindowState);
                         menuBar()->show();
                         m_toolbar->show();
+                        m_navRail->show();
                         m_tabs->tabBar()->show();
                     }
                 }
@@ -379,6 +540,54 @@ void MainWindow::onTabCloseRequested(int index)
 void MainWindow::onCurrentTabChanged(int)
 {
     updateNavActions();
+    pollNotificationsBadge();
+}
+
+void MainWindow::pollNotificationsBadge()
+{
+    auto *v = currentView();
+    if (!v)
+        return;
+    v->page()->runJavaScript(QString::fromUtf8(NOTIFICATIONS_COUNT_JS),
+                              [this](const QVariant &result)
+                              { updateNotificationsBadge(result.toInt()); });
+}
+
+void MainWindow::updateNotificationsBadge(int count)
+{
+    if (!m_notificationsAction)
+        return;
+
+    if (count <= 0)
+    {
+        m_notificationsAction->setIcon(m_bellBaseIcon);
+        return;
+    }
+
+    QPixmap pix = m_bellBaseIcon.pixmap(22, 22);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    const QString text = count > 99 ? QStringLiteral("99+") : QString::number(count);
+    QFont f = p.font();
+    f.setPixelSize(9);
+    f.setBold(true);
+    p.setFont(f);
+    QFontMetrics fm(f);
+    const int textW = fm.horizontalAdvance(text);
+    const int badgeW = qMax(14, textW + 6);
+    const int badgeH = 13;
+    const QRectF badgeRect(pix.width() - badgeW, 0, badgeW, badgeH);
+
+    p.setBrush(QColor(244, 33, 46));
+    p.setPen(Qt::NoPen);
+    p.drawRoundedRect(badgeRect, badgeH / 2.0, badgeH / 2.0);
+
+    p.setPen(Qt::white);
+    p.drawText(badgeRect, Qt::AlignCenter, text);
+    p.end();
+
+    m_notificationsAction->setIcon(QIcon(pix));
 }
 
 void MainWindow::onNewTab()
@@ -462,6 +671,7 @@ void MainWindow::enterWidgetMode()
 
     menuBar()->hide();
     m_toolbar->hide();
+    m_navRail->hide();
     m_tabs->tabBar()->hide();
     if (m_resourcePanel->isVisible())
         m_resourcePanel->hide();
@@ -515,6 +725,7 @@ void MainWindow::exitWidgetMode()
 
     menuBar()->show();
     m_toolbar->show();
+    m_navRail->show();
     m_tabs->tabBar()->show();
     m_resourcePanel->reanchor();
 

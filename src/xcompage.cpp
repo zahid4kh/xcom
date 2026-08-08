@@ -29,6 +29,7 @@ XComPage::XComPage(MainWindow* mainWindow, QWebEngineProfile* profile,
     settings()->setAttribute(QWebEngineSettings::WebGLEnabled, true);
     settings()->setAttribute(QWebEngineSettings::JavascriptCanAccessClipboard, true);
     settings()->setAttribute(QWebEngineSettings::LocalStorageEnabled, true);
+    settings()->setAttribute(QWebEngineSettings::ScrollAnimatorEnabled, true);
 }
 
 QWebEnginePage* XComPage::createWindow(WebWindowType)

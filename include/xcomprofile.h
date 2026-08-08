@@ -30,6 +30,7 @@ private:
     void installViewportUnitFallback();
     void installViewTransitionFallback();
     void installContainerQueryFallback();
+    void installChromeStripping();
 
     static XComProfile* s_instance;
 };

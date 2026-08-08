@@ -113,6 +113,41 @@ namespace
     if(document.head)document.head.appendChild(s);
 })();
 )js";
+
+    const char CHROME_STRIP_JS[] = R"js(
+(function(){
+    if(document.getElementById('xcom-chrome-strip'))return;
+    var style=document.createElement('style');
+    style.id='xcom-chrome-strip';
+    style.textContent=
+        'nav[aria-label="Primary"]{display:none!important}'+
+        'div[aria-label="Trending"]{display:none!important}'+
+        'div[aria-label="Who to follow"]{display:none!important}';
+    if(document.head)document.head.appendChild(style);
+
+    function hideCard(el){
+        var cur=el, depth=0;
+        while(cur && depth<6){
+            if(cur.hasAttribute && cur.hasAttribute('aria-label')){ cur.style.display='none'; return; }
+            cur=cur.parentElement; depth++;
+        }
+    }
+
+    function sweepSidebar(){
+        var sidebar=document.querySelector('[data-testid="sidebarColumn"]');
+        if(!sidebar) return;
+        sidebar.querySelectorAll('a[href*="premium_sign_up"]').forEach(hideCard);
+    }
+
+    function attachObserver(){
+        var sidebar=document.querySelector('[data-testid="sidebarColumn"]');
+        if(!sidebar){ setTimeout(attachObserver,500); return; }
+        sweepSidebar();
+        new MutationObserver(sweepSidebar).observe(sidebar,{childList:true,subtree:true});
+    }
+    attachObserver();
+})();
+)js";
 }
 
 XComProfile *XComProfile::s_instance = nullptr;
@@ -149,6 +184,7 @@ XComProfile::XComProfile(QObject *parent)
     installViewportUnitFallback();
     installViewTransitionFallback();
     installContainerQueryFallback();
+    installChromeStripping();
 }
 
 void XComProfile::installEs2023Polyfills()
@@ -192,6 +228,17 @@ void XComProfile::installContainerQueryFallback()
     script.setInjectionPoint(QWebEngineScript::DocumentReady);
     script.setWorldId(QWebEngineScript::MainWorld);
     script.setRunsOnSubFrames(true);
+    scripts()->insert(script);
+}
+
+void XComProfile::installChromeStripping()
+{
+    QWebEngineScript script;
+    script.setName(QStringLiteral("xcom-chrome-strip"));
+    script.setSourceCode(QString::fromUtf8(CHROME_STRIP_JS));
+    script.setInjectionPoint(QWebEngineScript::DocumentReady);
+    script.setWorldId(QWebEngineScript::MainWorld);
+    script.setRunsOnSubFrames(false);
     scripts()->insert(script);
 }
 

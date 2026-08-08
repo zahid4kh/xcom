@@ -26,7 +26,11 @@ public:
 
 protected:
     void contextMenuEvent(QContextMenuEvent* event) override;
+    bool event(QEvent* e) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     MainWindow* m_mainWindow;
+    bool m_wheelFilterInstalled = false;
+    bool m_forwardingWheel = false;
 };

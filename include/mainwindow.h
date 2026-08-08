@@ -15,6 +15,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QIcon>
 #include <QMainWindow>
 #include <QPoint>
 
@@ -43,6 +44,7 @@ public:
     XComView *createTab(const QUrl &url);
     XComView *currentView() const;
     WindowMode mode() const { return m_mode; }
+    qreal scrollSpeed() const { return m_scrollSpeed; }
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -60,8 +62,12 @@ private slots:
 private:
     void setupMenu();
     void setupToolbar();
+    void setupNavRail();
+    void setupZoomControls();
     void setupTabs();
     void setupTray();
+    void triggerNavLink(const QString &selector);
+    void navigateTo(const QUrl &url);
     void updateNavActions();
     void updateModeUi();
     void injectWidgetCss();
@@ -69,20 +75,28 @@ private:
     void setAllViewsBackground(const QColor &color);
     void saveSettings();
     void loadSettings();
+    void updateNotificationsBadge(int count);
+    void pollNotificationsBadge();
 
     // Widgets
     QTabWidget *m_tabs = nullptr;
     QToolBar *m_toolbar = nullptr;
+    QToolBar *m_navRail = nullptr;
     QAction *m_back = nullptr;
     QAction *m_forward = nullptr;
     ResourcePanel *m_resourcePanel = nullptr;
     QLabel *m_cpuMiniLabel = nullptr;
     QLabel *m_memMiniLabel = nullptr;
     QLabel *m_diskMiniLabel = nullptr;
+    QLabel *m_zoomLabel = nullptr;
+    QAction *m_notificationsAction = nullptr;
+    QIcon m_bellBaseIcon;
     WidgetHeader *m_widgetHeader = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QAction *m_widgetModeAction = nullptr;
     QAction *m_trayModeAction = nullptr;
+
+    qreal m_scrollSpeed = 1.0;
 
     WindowMode m_mode = WindowMode::Normal;
     QByteArray m_normalGeometry;
