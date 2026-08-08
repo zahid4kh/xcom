@@ -21,10 +21,15 @@ class XComProfile : public QWebEngineProfile
     Q_OBJECT
 public:
     static XComProfile* instance();
+    static void shutdown();
     void logout();
 
 private:
     explicit XComProfile(QObject* parent = nullptr);
+    void installEs2023Polyfills();
+    void installViewportUnitFallback();
+    void installViewTransitionFallback();
+    void installContainerQueryFallback();
 
     static XComProfile* s_instance;
 };

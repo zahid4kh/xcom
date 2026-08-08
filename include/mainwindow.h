@@ -23,6 +23,7 @@ class QToolBar;
 class QAction;
 class QCloseEvent;
 class QSystemTrayIcon;
+class QLabel;
 class XComView;
 class ResourcePanel;
 class WidgetHeader;
@@ -75,6 +76,9 @@ private:
     QAction *m_back = nullptr;
     QAction *m_forward = nullptr;
     ResourcePanel *m_resourcePanel = nullptr;
+    QLabel *m_cpuMiniLabel = nullptr;
+    QLabel *m_memMiniLabel = nullptr;
+    QLabel *m_diskMiniLabel = nullptr;
     WidgetHeader *m_widgetHeader = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QAction *m_widgetModeAction = nullptr;

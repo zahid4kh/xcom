@@ -16,18 +16,121 @@
 
 #include <QStandardPaths>
 #include <QWebEngineCookieStore>
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
 #include <QRegularExpression>
 
-XComProfile* XComProfile::s_instance = nullptr;
+namespace
+{
 
-XComProfile* XComProfile::instance()
+    const char ES2023_ARRAY_POLYFILLS_JS[] = R"js(
+(function(){
+    if (typeof Array.prototype.toSorted !== 'function') {
+        Array.prototype.toSorted = function(compareFn) {
+            return this.slice().sort(compareFn);
+        };
+    }
+    if (typeof Array.prototype.toReversed !== 'function') {
+        Array.prototype.toReversed = function() {
+            return this.slice().reverse();
+        };
+    }
+    if (typeof Array.prototype.toSpliced !== 'function') {
+        Array.prototype.toSpliced = function(start, deleteCount) {
+            var items = Array.prototype.slice.call(arguments, 2);
+            var copy = this.slice();
+            copy.splice.apply(copy, [start, deleteCount].concat(items));
+            return copy;
+        };
+    }
+    if (typeof Array.prototype.with !== 'function') {
+        Array.prototype.with = function(index, value) {
+            var copy = this.slice();
+            copy[index < 0 ? copy.length + index : index] = value;
+            return copy;
+        };
+    }
+})();
+)js";
+
+    const char VIEWPORT_UNIT_FALLBACK_CSS[] = R"js(
+(function(){
+    if(document.getElementById('xcom-viewport-unit-fallback'))return;
+    var s=document.createElement('style');
+    s.id='xcom-viewport-unit-fallback';
+    s.textContent=
+        '.min-h-dvh{min-height:100vh!important}'+
+        '.h-dvh{height:100vh!important}'+
+        '.max-h-dvh{max-height:100vh!important}'+
+        '.min-h-svh{min-height:100vh!important}'+
+        '.h-svh{height:100vh!important}'+
+        '.max-h-svh{max-height:100vh!important}'+
+        '.min-h-lvh{min-height:100vh!important}'+
+        '.h-lvh{height:100vh!important}'+
+        '.max-h-lvh{max-height:100vh!important}'+
+        '.min-w-dvw{min-width:100vw!important}'+
+        '.w-dvw{width:100vw!important}'+
+        '.max-w-dvw{max-width:100vw!important}';
+    if(document.head)document.head.appendChild(s);
+})();
+)js";
+
+    const char VIEW_TRANSITION_FALLBACK_JS[] = R"js(
+(function(){
+    if (typeof document.startViewTransition === 'function') return;
+    document.startViewTransition = function(callback) {
+        var updateResult;
+        try {
+            updateResult = typeof callback === 'function' ? callback() : undefined;
+        } catch (e) {
+            updateResult = Promise.reject(e);
+        }
+        var done = Promise.resolve(updateResult);
+        return {
+            ready: done,
+            updateCallbackDone: done,
+            finished: done,
+            skipTransition: function() {}
+        };
+    };
+})();
+)js";
+
+    const char CONTAINER_QUERY_FALLBACK_CSS[] = R"js(
+(function(){
+    if(document.getElementById('xcom-container-query-fallback'))return;
+    var s=document.createElement('style');
+    s.id='xcom-container-query-fallback';
+    s.textContent=
+        '.narrow\\:inset-0{inset:0!important}'+
+        '.narrow\\:m-auto{margin:auto!important}'+
+        '.narrow\\:h-fit{height:fit-content!important}'+
+        '.narrow\\:w-\\[700px\\]{width:700px!important}'+
+        '.narrow\\:max-w-full{max-width:100%!important}'+
+        '.narrow\\:overflow-hidden{overflow:hidden!important}'+
+        '.narrow\\:rounded-lg{border-radius:0.5rem!important}'+
+        '.narrow\\:border{border-width:1px!important;border-style:solid!important}';
+    if(document.head)document.head.appendChild(s);
+})();
+)js";
+}
+
+XComProfile *XComProfile::s_instance = nullptr;
+
+XComProfile *XComProfile::instance()
 {
     if (!s_instance)
         s_instance = new XComProfile();
     return s_instance;
 }
 
-XComProfile::XComProfile(QObject* parent)
+void XComProfile::shutdown()
+{
+    delete s_instance;
+    s_instance = nullptr;
+}
+
+XComProfile::XComProfile(QObject *parent)
     : QWebEngineProfile(QStringLiteral("XCOM"), parent)
 {
     const QString dataPath =
@@ -41,6 +144,55 @@ XComProfile::XComProfile(QObject* parent)
     QString userAgent = httpUserAgent();
     userAgent.remove(QRegularExpression(QStringLiteral("\\s+QtWebEngine/\\S+")));
     setHttpUserAgent(userAgent);
+
+    installEs2023Polyfills();
+    installViewportUnitFallback();
+    installViewTransitionFallback();
+    installContainerQueryFallback();
+}
+
+void XComProfile::installEs2023Polyfills()
+{
+    QWebEngineScript script;
+    script.setName(QStringLiteral("xcom-es2023-array-polyfills"));
+    script.setSourceCode(QString::fromUtf8(ES2023_ARRAY_POLYFILLS_JS));
+    script.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    script.setWorldId(QWebEngineScript::MainWorld);
+    script.setRunsOnSubFrames(true);
+    scripts()->insert(script);
+}
+
+void XComProfile::installViewportUnitFallback()
+{
+    QWebEngineScript script;
+    script.setName(QStringLiteral("xcom-viewport-unit-fallback"));
+    script.setSourceCode(QString::fromUtf8(VIEWPORT_UNIT_FALLBACK_CSS));
+    script.setInjectionPoint(QWebEngineScript::DocumentReady);
+    script.setWorldId(QWebEngineScript::MainWorld);
+    script.setRunsOnSubFrames(true);
+    scripts()->insert(script);
+}
+
+void XComProfile::installViewTransitionFallback()
+{
+    QWebEngineScript script;
+    script.setName(QStringLiteral("xcom-view-transition-fallback"));
+    script.setSourceCode(QString::fromUtf8(VIEW_TRANSITION_FALLBACK_JS));
+    script.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    script.setWorldId(QWebEngineScript::MainWorld);
+    script.setRunsOnSubFrames(true);
+    scripts()->insert(script);
+}
+
+void XComProfile::installContainerQueryFallback()
+{
+    QWebEngineScript script;
+    script.setName(QStringLiteral("xcom-container-query-fallback"));
+    script.setSourceCode(QString::fromUtf8(CONTAINER_QUERY_FALLBACK_CSS));
+    script.setInjectionPoint(QWebEngineScript::DocumentReady);
+    script.setWorldId(QWebEngineScript::MainWorld);
+    script.setRunsOnSubFrames(true);
+    scripts()->insert(script);
 }
 
 void XComProfile::logout()

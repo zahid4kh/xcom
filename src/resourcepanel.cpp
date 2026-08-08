@@ -15,12 +15,16 @@
 #include "resourcepanel.h"
 
 #include <QDirIterator>
+#include <QEvent>
 #include <QFile>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPushButton>
+#include <QRegion>
+#include <QResizeEvent>
 #include <QStandardPaths>
 #include <QVBoxLayout>
 #include <QtConcurrent>
@@ -49,16 +53,16 @@ void ArcGauge::paintEvent(QPaintEvent*)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    const int pw = 9;
-    const int mg = pw + 12;
-    const QRectF arc = QRectF(rect()).adjusted(mg, mg, -mg, -mg - 16);
+    const int pw = 8;
+    const int mg = pw + 11;
+    const QRectF arc = QRectF(rect()).adjusted(mg, mg, -mg, -mg - 15);
 
-    p.setPen(QPen(QColor(35, 35, 60), pw, Qt::SolidLine, Qt::RoundCap));
+    p.setPen(QPen(QColor(22, 27, 36), pw, Qt::SolidLine, Qt::RoundCap));
     p.drawArc(arc, 225 * 16, -270 * 16);
 
     if (m_value > 0.001) {
         QColor glow = m_color;
-        glow.setAlpha(50);
+        glow.setAlpha(55);
         p.setPen(QPen(glow, pw + 10, Qt::SolidLine, Qt::RoundCap));
         p.drawArc(arc, 225 * 16, -qRound(m_value * 270 * 16));
 
@@ -70,14 +74,15 @@ void ArcGauge::paintEvent(QPaintEvent*)
     vf.setPixelSize(15);
     vf.setBold(true);
     p.setFont(vf);
-    p.setPen(QColor(235, 235, 255));
+    p.setPen(QColor(224, 250, 255));
     p.drawText(arc.toRect(), Qt::AlignCenter, m_text);
 
     QFont lf = font();
     lf.setPixelSize(10);
+    lf.setLetterSpacing(QFont::AbsoluteSpacing, 1);
     p.setFont(lf);
-    p.setPen(QColor(110, 110, 170));
-    p.drawText(QRect(0, rect().height() - 16, rect().width(), 16),
+    p.setPen(QColor(70, 140, 155));
+    p.drawText(QRect(0, rect().height() - 15, rect().width(), 15),
                Qt::AlignCenter, m_label);
 }
 
@@ -96,38 +101,39 @@ static qint64 calcDirSize(const QString& path)
 ResourcePanel::ResourcePanel(QWidget* parent)
     : QFrame(parent)
 {
-    setFixedWidth(280);
     setAttribute(Qt::WA_StyledBackground);
+    setFixedWidth(300);
     setStyleSheet(QStringLiteral(
         "ResourcePanel {"
         "  background: qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-        "    stop:0 #0b0b1a, stop:1 #0f0f24);"
-        "  border-left: 1px solid #252550;"
+        "    stop:0 #05050d, stop:1 #0a0e1a);"
+        "  border: 1.5px solid rgba(0,229,255,140);"
+        "  border-radius: 18px;"
         "}"
     ));
 
     auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(18, 14, 18, 18);
+    root->setContentsMargins(18, 14, 18, 16);
     root->setSpacing(6);
 
     auto* header = new QHBoxLayout;
 
     auto* dot = new QLabel(QStringLiteral("⊙"), this);
-    dot->setStyleSheet(QStringLiteral("color:#00c8ff; font-size:16px;"));
+    dot->setStyleSheet(QStringLiteral("color:#00e5ff; font-size:16px;"));
 
     auto* title = new QLabel(QStringLiteral("Resource Monitor"), this);
     QFont tf = title->font();
     tf.setPixelSize(12);
     tf.setBold(true);
     title->setFont(tf);
-    title->setStyleSheet(QStringLiteral("color:#c0c0f0; letter-spacing:1px;"));
+    title->setStyleSheet(QStringLiteral("color:#c7f8ff; letter-spacing:1px;"));
 
     auto* closeBtn = new QPushButton(QStringLiteral("✕"), this);
     closeBtn->setFixedSize(22, 22);
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setStyleSheet(QStringLiteral(
-        "QPushButton { background:transparent; color:#505080; border:none; font-size:13px; }"
-        "QPushButton:hover { color:#ffffff; }"
+        "QPushButton { background:transparent; color:#3d5866; border:none; font-size:13px; }"
+        "QPushButton:hover { color:#ff4d6d; }"
     ));
     connect(closeBtn, &QPushButton::clicked, this, &ResourcePanel::toggle);
 
@@ -140,22 +146,22 @@ ResourcePanel::ResourcePanel(QWidget* parent)
 
     auto* sep = new QFrame(this);
     sep->setFrameShape(QFrame::HLine);
-    sep->setStyleSheet(QStringLiteral("color:#252550;"));
+    sep->setStyleSheet(QStringLiteral("color:rgba(0,229,255,40);"));
     root->addWidget(sep);
-    root->addSpacing(6);
+    root->addSpacing(4);
 
-    m_cpuGauge  = new ArcGauge(QStringLiteral("CPU"),    QColor(0,   200, 255), this);
-    m_memGauge  = new ArcGauge(QStringLiteral("Memory"), QColor(160,  90, 255), this);
-    m_diskGauge = new ArcGauge(QStringLiteral("Cache"),  QColor(20,  210, 140), this);
+    m_cpuGauge  = new ArcGauge(QStringLiteral("CPU"),   QColor(0,   229, 255), this);
+    m_memGauge  = new ArcGauge(QStringLiteral("MEMORY"), QColor(255,  43, 214), this);
+    m_diskGauge = new ArcGauge(QStringLiteral("CACHE"), QColor(57,  255, 136), this);
 
     const auto addGaugeCard = [&](ArcGauge* g) {
         auto* card = new QFrame(this);
         card->setStyleSheet(QStringLiteral(
-            "QFrame { background:#111128; border-radius:12px;"
-            "  border:1px solid #202048; }"
+            "QFrame { background:#0c0f18; border-radius:14px;"
+            "  border:1px solid rgba(0,229,255,45); }"
         ));
         auto* row = new QHBoxLayout(card);
-        row->setContentsMargins(0, 10, 0, 10);
+        row->setContentsMargins(0, 8, 0, 8);
         row->addStretch();
         row->addWidget(g);
         row->addStretch();
@@ -166,18 +172,33 @@ ResourcePanel::ResourcePanel(QWidget* parent)
     addGaugeCard(m_memGauge);
     addGaugeCard(m_diskGauge);
 
-    root->addStretch();
-
     auto* note = new QLabel(QStringLiteral("Updates every 2 s"), this);
     note->setAlignment(Qt::AlignCenter);
-    note->setStyleSheet(QStringLiteral("color:#303060; font-size:9px;"));
+    note->setStyleSheet(QStringLiteral("color:#33505c; font-size:9px; margin-top:2px;"));
     root->addWidget(note);
 
-    m_anim = new QPropertyAnimation(this, "pos", this);
-    m_anim->setDuration(300);
-    m_anim->setEasingCurve(QEasingCurve::OutCubic);
+    adjustSize();
+    m_naturalSize = size();
+
+    if (parent) {
+        m_backdrop = new QWidget(parent);
+        m_backdrop->setAttribute(Qt::WA_StyledBackground);
+        m_backdrop->setStyleSheet(QStringLiteral("background: rgba(0,0,0,140);"));
+        m_backdropFx = new QGraphicsOpacityEffect(m_backdrop);
+        m_backdropFx->setOpacity(0.0);
+        m_backdrop->setGraphicsEffect(m_backdropFx);
+        m_backdrop->installEventFilter(this);
+        m_backdrop->hide();
+
+        m_backdropAnim = new QPropertyAnimation(m_backdropFx, "opacity", this);
+    }
+
+    m_anim = new QPropertyAnimation(this, "geometry", this);
     connect(m_anim, &QPropertyAnimation::finished, this, [this]() {
-        if (!m_open) hide();
+        if (!m_open) {
+            hide();
+            if (m_backdrop) m_backdrop->hide();
+        }
     });
 
     m_timer = new QTimer(this);
@@ -192,8 +213,22 @@ ResourcePanel::ResourcePanel(QWidget* parent)
     m_diskTimer->setInterval(30000);
     connect(m_diskTimer, &QTimer::timeout, this, &ResourcePanel::scheduleDiskCalc);
 
+    // Sampling runs continuously (not just while the panel is open) so the
+    // collapsed toolbar readout always reflects live values.
+    refresh();
+    m_timer->start();
+    scheduleDiskCalc();
+    m_diskTimer->start();
+
     hide();
-    if (parent) move(parent->width(), 0);
+}
+
+QRect ResourcePanel::centeredRect(const QSize& size) const
+{
+    QWidget* p = parentWidget();
+    const QPoint c = p ? p->rect().center() : QPoint(0, 0);
+    return QRect(c.x() - size.width() / 2, c.y() - size.height() / 2,
+                 size.width(), size.height());
 }
 
 void ResourcePanel::toggle()
@@ -203,48 +238,88 @@ void ResourcePanel::toggle()
 
 void ResourcePanel::slideIn()
 {
-    m_open      = true;
-    m_prevUtime = -1;
+    m_open = true;
 
-    QWidget* p = parentWidget();
-    setFixedHeight(p->height());
-    move(p->width(), 0);
+    if (m_backdrop) {
+        m_backdrop->setGeometry(parentWidget()->rect());
+        m_backdrop->show();
+        m_backdrop->raise();
+    }
+
+    const QRect target = centeredRect(m_naturalSize);
+    const QRect start  = centeredRect(m_naturalSize * 0.72);
+
+    setGeometry(start);
     raise();
     show();
 
     m_anim->stop();
-    m_anim->setStartValue(QPoint(p->width(), 0));
-    m_anim->setEndValue(QPoint(p->width() - width(), 0));
+    m_anim->setEasingCurve(QEasingCurve::OutBack);
+    m_anim->setDuration(320);
+    m_anim->setStartValue(start);
+    m_anim->setEndValue(target);
     m_anim->start();
 
-    refresh();
-    m_timer->start();
-    scheduleDiskCalc();
-    m_diskTimer->start();
+    if (m_backdropAnim) {
+        m_backdropAnim->stop();
+        m_backdropAnim->setEasingCurve(QEasingCurve::OutCubic);
+        m_backdropAnim->setDuration(220);
+        m_backdropAnim->setStartValue(0.0);
+        m_backdropAnim->setEndValue(1.0);
+        m_backdropAnim->start();
+    }
 }
 
 void ResourcePanel::slideOut()
 {
     m_open = false;
-    m_timer->stop();
-    m_diskTimer->stop();
 
-    QWidget* p = parentWidget();
+    const QRect end = centeredRect(m_naturalSize * 0.72);
+
     m_anim->stop();
-    m_anim->setStartValue(pos());
-    m_anim->setEndValue(QPoint(p->width(), 0));
+    m_anim->setEasingCurve(QEasingCurve::InCubic);
+    m_anim->setDuration(200);
+    m_anim->setStartValue(geometry());
+    m_anim->setEndValue(end);
     m_anim->start();
+
+    if (m_backdropAnim) {
+        m_backdropAnim->stop();
+        m_backdropAnim->setEasingCurve(QEasingCurve::InCubic);
+        m_backdropAnim->setDuration(200);
+        m_backdropAnim->setStartValue(1.0);
+        m_backdropAnim->setEndValue(0.0);
+        m_backdropAnim->start();
+    }
 }
 
 void ResourcePanel::reanchor()
 {
     QWidget* p = parentWidget();
     if (!p) return;
-    setFixedHeight(p->height());
-    if (!m_open || m_anim->state() == QAbstractAnimation::Running)
-        move(m_open ? p->width() - width() : p->width(), 0);
-    else
-        move(p->width() - width(), 0);
+
+    if (m_backdrop && (m_backdrop->isVisible()))
+        m_backdrop->setGeometry(p->rect());
+
+    if (m_open && m_anim->state() != QAbstractAnimation::Running)
+        setGeometry(centeredRect(m_naturalSize));
+}
+
+bool ResourcePanel::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_backdrop && event->type() == QEvent::MouseButtonPress) {
+        slideOut();
+        return true;
+    }
+    return QFrame::eventFilter(watched, event);
+}
+
+void ResourcePanel::resizeEvent(QResizeEvent* event)
+{
+    QFrame::resizeEvent(event);
+    QPainterPath path;
+    path.addRoundedRect(rect(), 18, 18);
+    setMask(QRegion(path.toFillPolygon().toPolygon()));
 }
 
 bool ResourcePanel::readCpuTicks(qint64& utime, qint64& stime)
@@ -270,6 +345,7 @@ void ResourcePanel::refresh()
             m_prevStime = stime;
             m_elapsed.start();
             m_cpuGauge->setDisplayText(QStringLiteral("…"));
+            emit cpuStatsChanged(QStringLiteral("…"));
         } else {
             const qint64 elapsedMs  = m_elapsed.elapsed();
             const qint64 deltaTicks = (utime + stime) - (m_prevUtime + m_prevStime);
@@ -282,7 +358,9 @@ void ResourcePanel::refresh()
                 double pct = deltaTicks * 100000.0 / (clkTck * elapsedMs);
                 pct = qBound(0.0, pct, 100.0);
                 m_cpuGauge->setGaugeValue(pct / 100.0);
-                m_cpuGauge->setDisplayText(QStringLiteral("%1%").arg(qRound(pct)));
+                const QString text = QStringLiteral("%1%").arg(qRound(pct));
+                m_cpuGauge->setDisplayText(text);
+                emit cpuStatsChanged(text);
             }
         }
     }
@@ -295,9 +373,11 @@ void ResourcePanel::refresh()
                 if (parts.size() >= 2) {
                     const double mb = parts[1].toLongLong() / 1024.0;
                     m_memGauge->setGaugeValue(qBound(0.0, mb / 2048.0, 1.0));
-                    m_memGauge->setDisplayText(
+                    const QString text =
                         mb < 1024 ? QStringLiteral("%1 MB").arg(qRound(mb))
-                                  : QStringLiteral("%1 GB").arg(mb / 1024.0, 0, 'f', 1));
+                                  : QStringLiteral("%1 GB").arg(mb / 1024.0, 0, 'f', 1);
+                    m_memGauge->setDisplayText(text);
+                    emit memStatsChanged(text);
                 }
                 break;
             }
@@ -320,7 +400,9 @@ void ResourcePanel::onDiskSizeDone()
 {
     const double mb = m_diskWatcher->result() / (1024.0 * 1024.0);
     m_diskGauge->setGaugeValue(qBound(0.0, mb / 1024.0, 1.0));
-    m_diskGauge->setDisplayText(
+    const QString text =
         mb < 1024 ? QStringLiteral("%1 MB").arg(qRound(mb))
-                  : QStringLiteral("%1 GB").arg(mb / 1024.0, 0, 'f', 1));
+                  : QStringLiteral("%1 GB").arg(mb / 1024.0, 0, 'f', 1);
+    m_diskGauge->setDisplayText(text);
+    emit diskStatsChanged(text);
 }

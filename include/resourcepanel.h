@@ -17,6 +17,7 @@
 #include <QElapsedTimer>
 #include <QFrame>
 #include <QFutureWatcher>
+#include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>
 #include <QTimer>
 
@@ -32,7 +33,7 @@ public:
     void   setGaugeValue(double v);
     void   setDisplayText(const QString& t);
 
-    QSize sizeHint() const override { return {140, 140}; }
+    QSize sizeHint() const override { return {128, 128}; }
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -53,6 +54,15 @@ public:
     void toggle();
     void reanchor();
 
+signals:
+    void cpuStatsChanged(const QString& text);
+    void memStatsChanged(const QString& text);
+    void diskStatsChanged(const QString& text);
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+
 private slots:
     void refresh();
     void onDiskSizeDone();
@@ -62,10 +72,17 @@ private:
     void slideOut();
     bool readCpuTicks(qint64& utime, qint64& stime);
     void scheduleDiskCalc();
+    QRect centeredRect(const QSize& size) const;
+
+    QSize m_naturalSize;
 
     ArcGauge* m_cpuGauge;
     ArcGauge* m_memGauge;
     ArcGauge* m_diskGauge;
+
+    QWidget*             m_backdrop      = nullptr;
+    QGraphicsOpacityEffect* m_backdropFx = nullptr;
+    QPropertyAnimation*  m_backdropAnim  = nullptr;
 
     QTimer*             m_timer;
     QPropertyAnimation* m_anim;

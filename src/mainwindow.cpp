@@ -22,6 +22,8 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMenuBar>
 #include <QResizeEvent>
 #include <QScreen>
@@ -88,6 +90,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_resourcePanel = new ResourcePanel(this);
     m_resourcePanel->raise();
+    connect(m_resourcePanel, &ResourcePanel::cpuStatsChanged, m_cpuMiniLabel, &QLabel::setText);
+    connect(m_resourcePanel, &ResourcePanel::memStatsChanged, m_memMiniLabel, &QLabel::setText);
+    connect(m_resourcePanel, &ResourcePanel::diskStatsChanged, m_diskMiniLabel, &QLabel::setText);
 
     createTab(HOME_URL);
     loadSettings();
@@ -131,6 +136,24 @@ void MainWindow::setupToolbar()
     QAction *newTab = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/x.svg"), ICON_COLOR), QString());
     m_toolbar->addSeparator();
     QAction *statsAct = m_toolbar->addAction(svgIcon(QStringLiteral(":/icons/activity.svg"), ICON_COLOR), QString());
+
+    auto *miniStats = new QWidget(m_toolbar);
+    auto *miniLayout = new QHBoxLayout(miniStats);
+    miniLayout->setContentsMargins(6, 0, 4, 0);
+    miniLayout->setSpacing(6);
+
+    const auto addMiniLabel = [&](const QString &color) {
+        auto *lbl = new QLabel(QStringLiteral("—"), miniStats);
+        lbl->setStyleSheet(QStringLiteral(
+            "color:%1; font-size:11px; font-weight:600;").arg(color));
+        miniLayout->addWidget(lbl);
+        return lbl;
+    };
+
+    m_cpuMiniLabel = addMiniLabel(QStringLiteral("#00e5ff"));
+    m_memMiniLabel = addMiniLabel(QStringLiteral("#ff2bd6"));
+    m_diskMiniLabel = addMiniLabel(QStringLiteral("#39ff88"));
+    m_toolbar->addWidget(miniStats);
 
     m_back->setToolTip(QStringLiteral("Back"));
     m_forward->setToolTip(QStringLiteral("Forward"));
