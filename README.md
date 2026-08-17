@@ -29,7 +29,7 @@ XCOM is a performance-focused, dedicated desktop client for X (formerly Twitter)
 2. Install using:
 
    ```bash
-   sudo dpkg -i xcom_1.3_amd64.deb
+   sudo dpkg -i xcom_1.3.1_amd64.deb
    sudo apt install -f
    ```
 

@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("XCOM"));
     app.setOrganizationName(QStringLiteral("XCOM"));
-    app.setApplicationVersion(QStringLiteral("1.3"));
+    app.setApplicationVersion(QStringLiteral("1.3.1"));
     app.setDesktopFileName(QStringLiteral("xcom"));
 
     QIcon icon;

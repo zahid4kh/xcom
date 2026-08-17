@@ -15,6 +15,7 @@
 #include "widgetheader.h"
 #include "svgicon.h"
 
+#include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -66,7 +67,8 @@ WidgetHeader::WidgetHeader(QWidget *parent)
         "color:#e4e4e7; font-size:14px; font-weight:600; background:transparent;"));
     logo->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    auto *title = new QLabel(QStringLiteral("XCOM"), this);
+    auto *title = new QLabel(
+        QStringLiteral("XCOM v%1").arg(QCoreApplication::applicationVersion()), this);
     QFont f = title->font();
     f.setPixelSize(10);
     f.setLetterSpacing(QFont::AbsoluteSpacing, 2);

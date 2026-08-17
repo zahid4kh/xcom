@@ -72,6 +72,7 @@ private:
     void updateModeUi();
     void injectWidgetCss();
     void removeWidgetCss();
+    void applyWidgetMask();
     void setAllViewsBackground(const QColor &color);
     void saveSettings();
     void loadSettings();

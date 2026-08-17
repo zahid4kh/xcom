@@ -28,6 +28,7 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QPainter>
+#include <QPainterPath>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QSettings>
@@ -64,6 +65,9 @@ static const char NOTIFICATIONS_COUNT_JS[] = R"js(
 static constexpr int WIDGET_W = 400;
 static constexpr int WIDGET_H = 700;
 
+static const QColor WIDGET_BG_COLOR(0x09, 0x09, 0x0b);
+static constexpr int WIDGET_RADIUS = 22;
+
 static const char WIDGET_CSS_JS[] = R"js(
 (function(){
     if(document.getElementById('xcom-widget-css'))return;
@@ -73,7 +77,6 @@ static const char WIDGET_CSS_JS[] = R"js(
         '[data-testid="sidebarColumn"]{display:none!important}'+
         'nav[aria-label="Primary"]{display:none!important}'+
         'header[role="banner"]{display:none!important}'+
-        '[data-testid="placementTracking"]{display:none!important}'+
         '[data-testid="primaryColumn"]{max-width:100%!important;border:none!important}';
     if(document.head)document.head.appendChild(s);
 })();
@@ -130,7 +133,11 @@ void MainWindow::setupMenu()
     auto *scrollGroup = new QActionGroup(this);
     scrollGroup->setExclusive(true);
 
-    struct SpeedOption { QString label; qreal value; };
+    struct SpeedOption
+    {
+        QString label;
+        qreal value;
+    };
     const QList<SpeedOption> speeds = {
         {QStringLiteral("0.5x"), 0.5},
         {QStringLiteral("0.75x"), 0.75},
@@ -186,10 +193,12 @@ void MainWindow::setupToolbar()
     miniLayout->setContentsMargins(6, 0, 4, 0);
     miniLayout->setSpacing(6);
 
-    const auto addMiniLabel = [&](const QString &color) {
+    const auto addMiniLabel = [&](const QString &color)
+    {
         auto *lbl = new QLabel(QStringLiteral("—"), miniStats);
         lbl->setStyleSheet(QStringLiteral(
-            "color:%1; font-size:11px; font-weight:600;").arg(color));
+                               "color:%1; font-size:11px; font-weight:600;")
+                               .arg(color));
         miniLayout->addWidget(lbl);
         return lbl;
     };
@@ -198,6 +207,12 @@ void MainWindow::setupToolbar()
     m_memMiniLabel = addMiniLabel(QStringLiteral("#ff2bd6"));
     m_diskMiniLabel = addMiniLabel(QStringLiteral("#39ff88"));
     m_toolbar->addWidget(miniStats);
+
+    auto *versionLabel = new QLabel(
+        QStringLiteral("v%1").arg(QApplication::applicationVersion()), m_toolbar);
+    versionLabel->setStyleSheet(QStringLiteral(
+        "color:#52525b; font-size:10px; font-weight:600; padding:0 8px;"));
+    m_toolbar->addWidget(versionLabel);
 
     m_back->setToolTip(QStringLiteral("Back"));
     m_forward->setToolTip(QStringLiteral("Forward"));
@@ -257,7 +272,7 @@ void MainWindow::setupNavRail()
     addLinkAction(QStringLiteral("search"), QStringLiteral("Explore"),
                   QStringLiteral("[data-testid=\"AppTabBar_Explore_Link\"]"));
     m_notificationsAction = addLinkAction(QStringLiteral("bell"), QStringLiteral("Notifications"),
-                  QStringLiteral("[data-testid=\"AppTabBar_Notifications_Link\"]"));
+                                          QStringLiteral("[data-testid=\"AppTabBar_Notifications_Link\"]"));
     m_bellBaseIcon = m_notificationsAction->icon();
 
     auto *notifTimer = new QTimer(this);
@@ -287,8 +302,8 @@ void MainWindow::triggerNavLink(const QString &selector)
     if (!v)
         return;
     const QString js = QStringLiteral(
-        "(function(){var e=document.querySelector('%1');if(e)e.click();})();")
-                            .arg(selector);
+                           "(function(){var e=document.querySelector('%1');if(e)e.click();})();")
+                           .arg(selector);
     v->page()->runJavaScript(js);
 }
 
@@ -415,7 +430,7 @@ XComView *MainWindow::createTab(const QUrl &url)
     m_tabs->setCurrentIndex(idx);
 
     if (m_mode == WindowMode::Widget)
-        view->page()->setBackgroundColor(Qt::transparent);
+        view->page()->setBackgroundColor(WIDGET_BG_COLOR);
 
     auto *closeBtn = new QToolButton(m_tabs->tabBar());
     closeBtn->setIcon(svgIcon(QStringLiteral(":/icons/circle-x.svg"), QColor(100, 100, 160), 14));
@@ -470,8 +485,7 @@ XComView *MainWindow::createTab(const QUrl &url)
 
                     if (m_mode == WindowMode::Widget)
                     {
-
-                        setAttribute(Qt::WA_TranslucentBackground, false);
+                        clearMask();
                         setWindowFlags(Qt::Window);
                         if (m_widgetHeader)
                             m_widgetHeader->hide();
@@ -489,12 +503,12 @@ XComView *MainWindow::createTab(const QUrl &url)
 
                     if (m_mode == WindowMode::Widget)
                     {
-                        setAttribute(Qt::WA_TranslucentBackground);
                         Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::Tool;
                         if (QGuiApplication::platformName() == QLatin1String("xcb"))
                             flags |= Qt::WindowStaysOnBottomHint;
                         setWindowFlags(flags);
                         resize(WIDGET_W, WIDGET_H);
+                        applyWidgetMask();
                         if (m_hasWidgetPos)
                             move(m_widgetPos);
                         if (m_widgetHeader)
@@ -549,8 +563,8 @@ void MainWindow::pollNotificationsBadge()
     if (!v)
         return;
     v->page()->runJavaScript(QString::fromUtf8(NOTIFICATIONS_COUNT_JS),
-                              [this](const QVariant &result)
-                              { updateNotificationsBadge(result.toInt()); });
+                             [this](const QVariant &result)
+                             { updateNotificationsBadge(result.toInt()); });
 }
 
 void MainWindow::updateNotificationsBadge(int count)
@@ -622,8 +636,6 @@ void MainWindow::enterWidgetMode()
 
     hide();
 
-    setAttribute(Qt::WA_TranslucentBackground);
-
     Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::Tool;
     // WindowStaysOnBottomHint is X11-only; unreliable on Wayland.
     if (QGuiApplication::platformName() == QLatin1String("xcb"))
@@ -640,7 +652,7 @@ void MainWindow::enterWidgetMode()
     container->setStyleSheet(QStringLiteral(
         "#WidgetFrame {"
         "  background: #09090b;"
-        "  border-radius: 22px;" // edit for more rounding
+        "  border-radius: 22px;"
         "  border: 1px solid #27272a;"
         "}"));
 
@@ -676,9 +688,10 @@ void MainWindow::enterWidgetMode()
     if (m_resourcePanel->isVisible())
         m_resourcePanel->hide();
 
-    setAllViewsBackground(Qt::transparent);
+    setAllViewsBackground(WIDGET_BG_COLOR);
 
     resize(WIDGET_W, WIDGET_H);
+    applyWidgetMask();
     if (m_hasWidgetPos)
     {
         move(m_widgetPos);
@@ -716,7 +729,7 @@ void MainWindow::exitWidgetMode()
     delete container;
     setCentralWidget(m_tabs);
 
-    setAttribute(Qt::WA_TranslucentBackground, false);
+    clearMask();
     setWindowFlags(Qt::Window);
 
     m_mode = WindowMode::Normal;
@@ -773,6 +786,14 @@ void MainWindow::removeWidgetCss()
         if (auto *v = qobject_cast<XComView *>(m_tabs->widget(i)))
             v->page()->runJavaScript(js);
     }
+}
+
+void MainWindow::applyWidgetMask()
+{
+
+    QPainterPath path;
+    path.addRoundedRect(rect(), WIDGET_RADIUS, WIDGET_RADIUS);
+    setMask(QRegion(path.toFillPolygon().toPolygon()));
 }
 
 void MainWindow::setAllViewsBackground(const QColor &color)
